@@ -3,48 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Projeto Ômega - Validação de Distância</title>
+    <title>Projeto Ômega - Simulação Interativa</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #f0f2f5;
+            background-color: #eceff1;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
 
-        h1 { color: #1565c0; margin-bottom: 5px; }
-        .subtitle { color: #5e35b1; margin-bottom: 20px; font-size: 0.9em; }
+        h1 { color: #0277bd; margin-bottom: 5px; }
+        .subtitle { color: #546e7a; margin-bottom: 20px; font-size: 0.9em; }
 
         /* Painel de Controle */
         .controls {
             background: white;
             padding: 15px 25px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             margin-bottom: 20px;
             display: flex;
             gap: 25px;
             align-items: center;
             flex-wrap: wrap;
-            border-bottom: 3px solid #1e88e5;
+            border-top: 4px solid #0288d1;
+            z-index: 200; /* Acima do mapa */
         }
 
         .status-panel {
-            background: #e3f2fd;
-            padding: 10px 20px;
-            border-radius: 8px;
+            background: #e1f5fe;
+            padding: 8px 15px;
+            border-radius: 6px;
             font-weight: bold;
-            color: #1565c0;
+            color: #0277bd;
+            font-size: 0.9em;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .btn-clear {
-            background-color: #e53935;
+            background-color: #ef5350;
             color: white;
             border: none;
             padding: 10px 15px;
@@ -56,17 +58,43 @@
             align-items: center;
             gap: 5px;
         }
-        .btn-clear:hover { background-color: #c62828; }
+        .btn-clear:hover { background-color: #d32f2f; }
 
         .control-group { display: flex; flex-direction: column; gap: 5px; }
-        label { font-size: 0.8em; font-weight: 700; color: #78909c; text-transform: uppercase; }
-        input[type="range"] { width: 150px; cursor: pointer; }
+        label { font-size: 0.75em; font-weight: 700; color: #78909c; text-transform: uppercase; letter-spacing: 0.5px;}
+        input[type="range"] { width: 140px; cursor: pointer; }
 
-        /* Mapa e SVG Layer */
+        /* Toggle Switch para Geometria */
+        .geometry-selector {
+            display: flex;
+            background: #f5f5f5;
+            padding: 4px;
+            border-radius: 8px;
+            gap: 5px;
+        }
+        .geo-option {
+            padding: 6px 12px;
+            font-size: 0.85em;
+            cursor: pointer;
+            border-radius: 6px;
+            color: #666;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .geo-option.active {
+            background: #0288d1;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* Mapa e SVG */
         .map-wrapper {
             position: relative;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-            border: 5px solid #fff;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            border: 6px solid #fff;
             border-radius: 4px;
             overflow: hidden;
             max-width: 95vw;
@@ -81,101 +109,103 @@
             pointer-events: none;
         }
 
-        /* SVG para desenhar linhas */
         #connections-layer {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none; /* Deixa passar cliques para o mapa */
-            z-index: 50; /* Abaixo das torres, acima do mapa */
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 50;
         }
 
-        .dist-line {
-            stroke-width: 2;
-            transition: stroke 0.3s;
-        }
+        .dist-line { stroke-width: 2; transition: stroke 0.3s; }
         .dist-text {
-            font-size: 12px;
-            font-weight: bold;
-            fill: white;
-            stroke: black;
-            stroke-width: 0.5px;
-            paint-order: stroke;
+            font-size: 11px; font-weight: bold; fill: #333;
+            text-shadow: 0px 0px 4px white; 
             text-anchor: middle; 
-        }
-        .dist-bg {
-            fill: rgba(0,0,0,0.6);
-            rx: 4;
         }
 
         /* Torre */
         .tower-anchor {
             position: absolute;
-            width: 0;
-            height: 0;
-            cursor: move;
+            width: 0; height: 0;
+            cursor: grab; /* Cursor indicando que pode pegar */
             z-index: 100;
+        }
+        .tower-anchor:active {
+            cursor: grabbing;
         }
 
         .tower-icon {
-            position: absolute;
-            left: 0;
-            top: 0;
-            font-size: 24px;
-            color: #d32f2f;
+            position: absolute; left: 0; top: 0;
+            font-size: 24px; color: #c62828;
             filter: drop-shadow(0 0 2px white);
             transform: translate(-50%, -50%); 
-            pointer-events: none;
+            /* CORREÇÃO: Pointer events auto para capturar o clique no ícone */
+            pointer-events: auto; 
+            z-index: 102; 
         }
 
-        .coverage-circle {
+        /* Formas de Cobertura */
+        .coverage-shape {
             position: absolute;
-            left: 0;
-            top: 0;
-            border-radius: 50%;
-            background-color: rgba(33, 150, 243, 0.2);
-            border: 2px solid rgba(33, 150, 243, 0.5);
+            left: 0; top: 0;
             transform: translate(-50%, -50%);
             pointer-events: none;
-            transition: width 0.2s, height 0.2s;
+            transition: all 0.3s ease;
+            z-index: 101;
+        }
+
+        .is-circle {
+            border-radius: 50%;
+            background-color: rgba(33, 150, 243, 0.2);
+            border: 2px solid rgba(33, 150, 243, 0.6);
+        }
+
+        .is-hexagon {
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+            background-color: rgba(33, 150, 243, 0.35); 
+            filter: drop-shadow(0px 0px 2px rgba(21, 101, 192, 0.8));
         }
 
         .instructions {
             margin-top: 15px;
-            background: #e8f5e9;
+            background: #fff8e1;
             padding: 10px 20px;
-            border: 1px solid #c8e6c9;
+            border: 1px solid #ffe0b2;
             border-radius: 6px;
-            color: #2e7d32;
+            color: #f57c00;
             font-size: 0.9em;
             text-align: center;
-            max-width: 700px;
         }
-        
-        /* Legenda de Distância */
+
         .dist-legend {
-            margin-top: 10px;
-            font-size: 0.85em;
-            display: flex;
-            gap: 15px;
+            margin-top: 10px; font-size: 0.8em; display: flex; gap: 15px; color: #555;
         }
-        .legend-item { display: flex; align-items: center; gap: 5px; }
-        .line-sample { width: 30px; height: 3px; }
+        .line-sample { width: 30px; height: 3px; display: inline-block; vertical-align: middle; margin-right: 5px; }
 
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
-    <h1>Projeto Ômega - Validação de Distância</h1>
-    <span class="subtitle">Verificação de adjacência (Máx: 5,85 km)</span>
+    <h1>Projeto Ômega - Simulação Interativa</h1>
+    <span class="subtitle">Adicione, Arraste e Configure as Células</span>
 
     <div class="controls">
         <div class="status-panel">
-            <i class="fa-solid fa-tower-broadcast"></i>
-            &nbsp;<span id="towerCount">0</span> / 4 ERBs
+            <i class="fa-solid fa-tower-cell"></i>
+            <span id="towerCount">0</span>/4
+        </div>
+
+        <div class="control-group">
+            <label>Geometria</label>
+            <div class="geometry-selector">
+                <div class="geo-option active" id="opt-circle" onclick="setShape('circle')">
+                    <i class="fa-regular fa-circle"></i> Circular
+                </div>
+                <div class="geo-option" id="opt-hexagon" onclick="setShape('hexagon')">
+                    <i class="fa-solid fa-cube"></i> Hexagonal
+                </div>
+            </div>
         </div>
 
         <div class="control-group">
@@ -185,42 +215,39 @@
         </div>
         
         <div class="control-group">
-             <label style="color: #c62828;">Limite Adjacente</label>
-             <span style="font-weight: bold; color: #333;">5,85 km</span>
+            <label style="color:#d32f2f">Adj. Máx</label>
+            <span style="font-weight:bold; font-size:0.9em">5,85 km</span>
         </div>
 
         <button class="btn-clear" onclick="clearAll()">
-            <i class="fa-solid fa-trash-can"></i> Limpar
+            <i class="fa-solid fa-trash"></i>
         </button>
     </div>
 
     <div class="map-wrapper" id="mapWrapper">
         <img src="mapa-acailandia.png" id="mapa-base" alt="Mapa Satélite" onerror="alert('Imagem não encontrada!')">
-        
-        <!-- Camada SVG para desenhar as linhas -->
         <svg id="connections-layer"></svg>
     </div>
     
     <div class="dist-legend">
-        <div class="legend-item">
-            <div class="line-sample" style="background: #00e676;"></div> Distância Segura (≤ 5,85km)
-        </div>
-        <div class="legend-item">
-            <div class="line-sample" style="background: #ff1744;"></div> Distância Excessiva (> 5,85km)
-        </div>
+        <div><div class="line-sample" style="background: #00e676;"></div>OK (≤ 5,85km)</div>
+        <div><div class="line-sample" style="background: #ff1744;"></div>Atenção (> 5,85km)</div>
     </div>
 
     <div class="instructions">
-        <i class="fa-solid fa-check-circle"></i>
-        <strong>Validar Projeto:</strong> Posicione as torres para cobrir a área urbana. Se a linha ficar vermelha, as torres estão muito distantes para garantir o <em>handover</em> (reuso de frequência K=7).
+        <strong>Instruções:</strong> Clique no mapa para adicionar. <strong>Clique e arraste</strong> o ícone da torre para mover. Clique duas vezes para remover.
     </div>
 
     <script>
         // --- CONSTANTES ---
         const RAIO_KM = 3.38;
-        const MAX_DIST_KM = 5.85; // Limite calculado para adjacência
+        const MAX_DIST_KM = 5.85;
         const MAX_TOWERS = 4;
         
+        // --- ESTADO ---
+        let currentShape = 'circle';
+        let towerCounter = 0;
+
         // --- DOM ---
         const mapWrapper = document.getElementById('mapWrapper');
         const svgLayer = document.getElementById('connections-layer');
@@ -228,11 +255,18 @@
         const scaleVal = document.getElementById('scaleVal');
         const countDisplay = document.getElementById('towerCount');
         
-        let towerCounter = 0;
+        // --- FUNÇÕES DE GEOMETRIA ---
+        function setShape(shape) {
+            currentShape = shape;
+            document.querySelectorAll('.geo-option').forEach(el => el.classList.remove('active'));
+            document.getElementById(`opt-${shape}`).classList.add('active');
+            updateSystem();
+        }
 
         // --- SISTEMA DE CRIAÇÃO ---
         mapWrapper.addEventListener('click', (e) => {
-            if(e.target.closest('.tower-anchor')) return;
+            // Se o alvo for o ícone ou o âncora, ignoramos (para não criar torre em cima de torre)
+            if(e.target.closest('.tower-anchor') || e.target.closest('.tower-icon')) return;
 
             if (towerCounter >= MAX_TOWERS) {
                 alert("Limite de 4 células atingido.");
@@ -242,7 +276,6 @@
             const rect = mapWrapper.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-
             const leftPercent = (x / rect.width) * 100;
             const topPercent = (y / rect.height) * 100;
 
@@ -256,100 +289,85 @@
             anchor.style.left = left + '%';
             anchor.style.top = top + '%';
             anchor.id = `tower-${id}`;
-            anchor.dataset.id = id; // Para identificar facilmente
-
+            
+            // Evento de Duplo Clique para Remover
             anchor.addEventListener('dblclick', (e) => {
                 e.stopPropagation();
                 anchor.remove();
                 updateSystem();
             });
 
-            const circle = document.createElement('div');
-            circle.className = 'coverage-circle';
+            // Forma de Cobertura
+            const shapeDiv = document.createElement('div');
+            shapeDiv.className = `coverage-shape is-${currentShape}`;
+            
+            // Ícone (Alvo do Clique/Drag)
             const icon = document.createElement('i');
             icon.className = 'fa-solid fa-tower-broadcast tower-icon';
 
-            anchor.appendChild(circle);
+            anchor.appendChild(shapeDiv);
             anchor.appendChild(icon);
             mapWrapper.appendChild(anchor);
 
             updateSystem();
+            
+            // Habilita o arraste no ícone e no âncora
             enableDrag(anchor);
         }
 
-        // --- ATUALIZAÇÃO GERAL ---
+        // --- ATUALIZAÇÃO ---
         function updateSystem() {
-            // 1. Atualizar contagem
             const towers = Array.from(document.querySelectorAll('.tower-anchor'));
             towerCounter = towers.length;
             countDisplay.innerText = towerCounter;
             
-            // 2. Atualizar Visuais (tamanho raio)
             const pxPerKm = parseInt(scaleSlider.value);
             scaleVal.textContent = pxPerKm + " px/km";
             const diameter = (RAIO_KM * pxPerKm) * 2;
-            
-            document.querySelectorAll('.coverage-circle').forEach(c => {
-                c.style.width = `${diameter}px`;
-                c.style.height = `${diameter}px`;
+
+            document.querySelectorAll('.coverage-shape').forEach(shape => {
+                shape.classList.remove('is-circle', 'is-hexagon');
+                shape.classList.add(`is-${currentShape}`);
+
+                if (currentShape === 'circle') {
+                    shape.style.width = `${diameter}px`;
+                    shape.style.height = `${diameter}px`;
+                } else {
+                    shape.style.width = `${diameter}px`;
+                    shape.style.height = `${diameter * 0.866}px`;
+                }
             });
 
-            // 3. Desenhar Conexões
             drawConnections(towers, pxPerKm);
         }
 
         function drawConnections(towers, pxPerKm) {
-            // Limpa SVG
             svgLayer.innerHTML = '';
-
             if (towers.length < 2) return;
 
-            // Loop para conectar todos os pares (Grafo completo para poucas torres é ok)
             for (let i = 0; i < towers.length; i++) {
                 for (let j = i + 1; j < towers.length; j++) {
                     const t1 = towers[i];
                     const t2 = towers[j];
+                    const x1 = t1.offsetLeft; const y1 = t1.offsetTop;
+                    const x2 = t2.offsetLeft; const y2 = t2.offsetTop;
 
-                    // Pega posições em pixels relativos ao wrapper
-                    const x1 = t1.offsetLeft;
-                    const y1 = t1.offsetTop;
-                    const x2 = t2.offsetLeft;
-                    const y2 = t2.offsetTop;
-
-                    // Distância Euclidiana em Pixels
                     const distPx = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-                    
-                    // Converter para Km
                     const distKm = (distPx / pxPerKm).toFixed(2);
-
-                    // Validação de Cor
                     const isSafe = distKm <= MAX_DIST_KM;
-                    const lineColor = isSafe ? '#00e676' : '#ff1744';
-                    const lineWidth = isSafe ? 2 : 3;
 
-                    // Cria Linha
                     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    line.setAttribute('x1', x1);
-                    line.setAttribute('y1', y1);
-                    line.setAttribute('x2', x2);
-                    line.setAttribute('y2', y2);
-                    line.setAttribute('stroke', lineColor);
-                    line.setAttribute('stroke-width', lineWidth);
+                    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+                    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+                    line.setAttribute('stroke', isSafe ? '#00e676' : '#ff1744');
+                    line.setAttribute('stroke-width', isSafe ? 2 : 3);
                     line.setAttribute('class', 'dist-line');
                     
-                    // Cria Texto (Label) de Distância
-                    const midX = (x1 + x2) / 2;
-                    const midY = (y1 + y2) / 2;
-                    
                     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    text.setAttribute('x', midX);
-                    text.setAttribute('y', midY - 5); // Levemente acima
+                    text.setAttribute('x', (x1 + x2) / 2);
+                    text.setAttribute('y', (y1 + y2) / 2 - 5);
                     text.setAttribute('class', 'dist-text');
                     text.textContent = `${distKm} km`;
-
-                    // Fundo para o texto (para ler melhor sobre o mapa)
-                    // SVG não tem background color nativo em text, usaremos rect simples se quiser, 
-                    // ou text-shadow via CSS. Vamos usar CSS paint-order stroke.
 
                     svgLayer.appendChild(line);
                     svgLayer.appendChild(text);
@@ -362,23 +380,31 @@
             updateSystem();
         }
 
-        // --- ARRASTE ---
+        // --- DRAG & DROP OTIMIZADO ---
         function enableDrag(element) {
             let isDragging = false;
             let startX, startY, initLeft, initTop;
 
             const onStart = (e) => {
+                // Previne conflito com duplo clique
                 if (e.detail === 2) return; 
-                e.preventDefault();
+                
+                e.preventDefault(); 
                 e.stopPropagation();
                 
                 isDragging = true;
                 const cX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const cY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
-                startX = cX; startY = cY;
-                initLeft = element.offsetLeft; initTop = element.offsetTop;
-                element.style.cursor = 'grabbing';
                 
+                startX = cX; startY = cY;
+                initLeft = element.offsetLeft; 
+                initTop = element.offsetTop;
+                
+                element.style.cursor = 'grabbing';
+                // Muda cursor do ícone filho também
+                const icon = element.querySelector('.tower-icon');
+                if(icon) icon.style.cursor = 'grabbing';
+
                 document.addEventListener('mousemove', onMove);
                 document.addEventListener('mouseup', onEnd);
                 document.addEventListener('touchmove', onMove, {passive:false});
@@ -390,40 +416,51 @@
                 const cX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                 const cY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
                 
-                const dx = cX - startX;
-                const dy = cY - startY;
+                let newLeft = initLeft + (cX - startX);
+                let newTop = initTop + (cY - startY);
                 
-                let newLeft = initLeft + dx;
-                let newTop = initTop + dy;
-                
+                // Limites
                 const maxW = mapWrapper.offsetWidth;
                 const maxH = mapWrapper.offsetHeight;
-
-                if(newLeft < 0) newLeft = 0;
+                
+                // Margem segura
+                if(newLeft < 0) newLeft = 0; 
                 if(newLeft > maxW) newLeft = maxW;
-                if(newTop < 0) newTop = 0;
+                if(newTop < 0) newTop = 0; 
                 if(newTop > maxH) newTop = maxH;
 
                 element.style.left = `${newLeft}px`;
                 element.style.top = `${newTop}px`;
-
-                // **Atualiza linhas em tempo real durante o arraste**
-                // Pequena otimização: não recalcular tudo se for pesado, 
-                // mas para 4 torres é imperceptível.
-                const pxPerKm = parseInt(scaleSlider.value);
-                const towers = Array.from(document.querySelectorAll('.tower-anchor'));
-                drawConnections(towers, pxPerKm);
+                
+                // Atualiza linhas em tempo real
+                // Pequena otimização: updateSystem recalcula tudo, para poucos elementos é ok
+                updateSystem();
             };
 
             const onEnd = () => {
+                if (!isDragging) return;
                 isDragging = false;
-                element.style.cursor = 'move';
+                
+                element.style.cursor = 'grab';
+                const icon = element.querySelector('.tower-icon');
+                if(icon) icon.style.cursor = 'grab';
+                
+                // Opcional: Converter para % ao soltar para manter responsividade
+                const parentW = mapWrapper.offsetWidth;
+                const parentH = mapWrapper.offsetHeight;
+                const currentLeftPx = parseFloat(element.style.left);
+                const currentTopPx = parseFloat(element.style.top);
+                
+                element.style.left = (currentLeftPx / parentW * 100) + '%';
+                element.style.top = (currentTopPx / parentH * 100) + '%';
+
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup', onEnd);
                 document.removeEventListener('touchmove', onMove);
                 document.removeEventListener('touchend', onEnd);
             };
 
+            // Listener no elemento âncora (o ícone tem pointer-events auto, então bolha pra cá)
             element.addEventListener('mousedown', onStart);
             element.addEventListener('touchstart', onStart, {passive: false});
         }
@@ -431,8 +468,7 @@
         // --- INIT ---
         scaleSlider.addEventListener('input', updateSystem);
         const img = document.getElementById('mapa-base');
-        if(img.complete) updateSystem();
-        else img.onload = updateSystem;
+        if(img.complete) updateSystem(); else img.onload = updateSystem;
 
     </script>
 </body>
